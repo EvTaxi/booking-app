@@ -1,8 +1,9 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Autocomplete } from '@react-google-maps/api';
 import { Wallet, CreditCard, Phone, AlertCircle } from 'lucide-react';
 import io from 'socket.io-client';
 
+// Initialize socket connection
 const socket = io(process.env.REACT_APP_BACKEND_URL, {
   withCredentials: true,
   transports: ['websocket', 'polling'],
@@ -14,6 +15,7 @@ const socket = io(process.env.REACT_APP_BACKEND_URL, {
 });
 
 const BookingInterface = () => {
+  // State management
   const [bookingType, setBookingType] = useState('now');
   const [name, setName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -28,7 +30,8 @@ const BookingInterface = () => {
   const pickupRef = useRef(null);
   const destinationRef = useRef(null);
 
-  React.useEffect(() => {
+  // Socket connection management
+  useEffect(() => {
     socket.on('connect', () => {
       console.log('Connected to server');
       setIsConnected(true);
@@ -50,7 +53,8 @@ const BookingInterface = () => {
       socket.off('connect_error');
     };
   }, []);
-
+  
+  // Helper Functions
   const handleBookingTypeChange = (type) => {
     setBookingType(type);
     setMessage('');
@@ -79,6 +83,39 @@ const BookingInterface = () => {
     setPhoneNumber(formattedPhoneNumber);
   };
 
+  const handleGPSClick = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          const geocoder = new window.google.maps.Geocoder();
+          geocoder.geocode(
+            { location: { lat: latitude, lng: longitude } },
+            (results, status) => {
+              if (status === 'OK' && results[0]) {
+                setPickup(results[0].formatted_address);
+                if (pickupRef.current) {
+                  pickupRef.current.setPlace({
+                    formatted_address: results[0].formatted_address,
+                    geometry: results[0].geometry
+                  });
+                }
+              } else {
+                setError("Couldn't find address for this location");
+              }
+            }
+          );
+        },
+        (error) => {
+          console.error('Location error:', error);
+          setError('Unable to get your location');
+        }
+      );
+    } else {
+      setError('Geolocation is not supported by your browser');
+    }
+  };
+
   const onPickupLoad = useCallback((autocomplete) => {
     pickupRef.current = autocomplete;
   }, []);
@@ -87,20 +124,33 @@ const BookingInterface = () => {
     destinationRef.current = autocomplete;
   }, []);
 
+  const resetForm = () => {
+    setName('');
+    setPhoneNumber('');
+    setPickup('');
+    setDestination('');
+    setSelectedDate('');
+    setSelectedTime('');
+  };
+  
+  // Form validation
   const validateForm = () => {
     if (!name || !phoneNumber || !pickup || !destination) {
       setError('Please fill in all required fields');
       return false;
     }
+    
     if (bookingType === 'future' && (!selectedDate || !selectedTime)) {
       setError('Please select both date and time for future bookings');
       return false;
     }
+    
     const phoneRegex = /^\d{3}-\d{3}-\d{4}$/;
     if (!phoneRegex.test(phoneNumber)) {
       setError('Please enter a valid phone number (XXX-XXX-XXXX)');
       return false;
     }
+    
     if (bookingType === 'future') {
       const today = new Date();
       const selectedDateTime = new Date(`${selectedDate}T${selectedTime}`);
@@ -116,6 +166,7 @@ const BookingInterface = () => {
     return true;
   };
 
+  // Form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
     console.log('Form submitted');
@@ -134,8 +185,9 @@ const BookingInterface = () => {
       bookingType,
       name,
       phoneNumber,
-      origin: pickupRef.current?.getPlace()?.formatted_address || pickup,
-      destination: destinationRef.current?.getPlace()?.formatted_address || destination,
+      origin: pickup,
+      destination: destination,
+      sessionId: Date.now().toString(),
       ...(bookingType === 'future' && {
         scheduledDate: selectedDate,
         scheduledTime: selectedTime
@@ -153,24 +205,16 @@ const BookingInterface = () => {
           setMessage(bookingType === 'now' 
             ? 'Ride request sent! Please wait for driver confirmation.'
             : 'Ride request sent. Look out for a text message to see if the driver can fulfill this request.');
-          
-          // Reset form
-          setName('');
-          setPhoneNumber('');
-          setPickup('');
-          setDestination('');
-          setSelectedDate('');
-          setSelectedTime('');
+          resetForm();
         } else {
-          setError(response.error || 'Failed to submit booking request');
+          setError(response.error || 'Failed to submit request');
         }
       });
     } catch (err) {
       console.error('Error sending booking request:', err);
       setError('Failed to send booking request. Please try again.');
     }
-  };
-
+  };// Render component
   return (
     <div className="max-w-2xl mx-auto p-4">
       {/* Connection Status */}
@@ -235,7 +279,15 @@ const BookingInterface = () => {
         <div>
           <label className="block text-gray-700 mb-1">Pick up</label>
           <div className="relative">
-            <Autocomplete onLoad={onPickupLoad}>
+            <Autocomplete
+              onLoad={onPickupLoad}
+              onPlaceChanged={() => {
+                if (pickupRef.current) {
+                  const place = pickupRef.current.getPlace();
+                  setPickup(place.formatted_address);
+                }
+              }}
+            >
               <input
                 type="text"
                 placeholder="Tap the pin to get your location"
@@ -245,21 +297,38 @@ const BookingInterface = () => {
                 required
               />
             </Autocomplete>
+            <button
+              type="button"
+              onClick={handleGPSClick}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-pink-500"
+            >
+              📍
+            </button>
           </div>
         </div>
 
         <div>
           <label className="block text-gray-700 mb-1">Drop off</label>
-          <Autocomplete onLoad={onDestinationLoad}>
-            <input
-              type="text"
-              placeholder="Where to?"
-              className="w-full p-3 border rounded-lg"
-              value={destination}
-              onChange={(e) => setDestination(e.target.value)}
-              required
-            />
-          </Autocomplete>
+          <div className="relative">
+            <Autocomplete
+              onLoad={onDestinationLoad}
+              onPlaceChanged={() => {
+                if (destinationRef.current) {
+                  const place = destinationRef.current.getPlace();
+                  setDestination(place.formatted_address);
+                }
+              }}
+            >
+              <input
+                type="text"
+                placeholder="Where to?"
+                className="w-full p-3 border rounded-lg"
+                value={destination}
+                onChange={(e) => setDestination(e.target.value)}
+                required
+              />
+            </Autocomplete>
+          </div>
         </div>
 
         <input
@@ -319,7 +388,7 @@ const BookingInterface = () => {
         </button>
       </form>
 
-      {/* Driver Info Card */}
+      {/* Driver Info Section */}
       <div className="bg-gray-50 rounded-lg p-6 shadow-sm">
         <h2 className="text-xl font-semibold text-center mb-6">Your Driver</h2>
         <div className="relative mb-4">
