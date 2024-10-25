@@ -3,8 +3,8 @@ import io from 'socket.io-client';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'https://ev-taxi-backend-7e73753d6355.herokuapp.com';
 
 const socket = io(BACKEND_URL, {
-  withCredentials: false,
-  transports: ['polling', 'websocket'],
+  withCredentials: false, // Change this to false
+  transports: ['polling', 'websocket'], // Try polling first
   reconnection: true,
   reconnectionAttempts: 5,
   reconnectionDelay: 1000,
@@ -28,6 +28,7 @@ socket.on('connect_error', (error) => {
   retryCount++;
   
   if (retryCount <= maxRetries) {
+    // Try to reconnect with polling if WebSocket fails
     if (socket.io.opts.transports.includes('websocket')) {
       console.log('Falling back to polling');
       socket.io.opts.transports = ['polling'];

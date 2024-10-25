@@ -4,17 +4,7 @@ module.exports = {
     "./src/**/*.{js,jsx,ts,tsx}",
   ],
   theme: {
-    extend: {
-      animation: {
-        'spin-slow': 'spin 3s linear infinite',
-      },
-      spacing: {
-        '18': '4.5rem',
-      },
-      borderRadius: {
-        'xl': '1rem',
-      },
-    },
+    extend: {},
   },
   plugins: [],
 }

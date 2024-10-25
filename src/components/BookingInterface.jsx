@@ -1,321 +1,511 @@
-import React, { useState, useEffect } from 'react';
-import { MapPin, User, Phone, AlertCircle } from 'lucide-react';
-import { useJsApiLoader, Autocomplete } from '@react-google-maps/api';
-import io from 'socket.io-client';
-import moment from 'moment-timezone';
-import DriverInfo from './DriverInfo';
-
-const libraries = ["places"];
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'https://ev-taxi-backend-7e73753d6355.herokuapp.com';
-
-const socket = io(BACKEND_URL, {
-  withCredentials: false,
-  transports: ['polling', 'websocket'],
-  reconnection: true,
-  reconnectionAttempts: 5,
-  reconnectionDelay: 1000,
-  reconnectionDelayMax: 5000,
-  timeout: 20000,
-  autoConnect: true,
-  path: '/socket.io/',
-  secure: true
-});
+import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { Autocomplete } from '@react-google-maps/api';
+import { Wallet, CreditCard, Phone, AlertCircle, MapPin, Calendar, Clock } from 'lucide-react';
+import socket from '../utils/socket';
 
 const BookingInterface = () => {
-  const { isLoaded, loadError } = useJsApiLoader({
-    googleMapsApiKey: process.env.REACT_APP_GOOGLE_MAPS_API_KEY,
-    libraries,
-  });
-
-  const [activeTab, setActiveTab] = useState('request');
-  const [formData, setFormData] = useState({
-    pickup: '',
-    destination: '',
-    name: '',
-    phoneNumber: '',
-    scheduledDate: '',
-    scheduledTime: ''
-  });
-  const [isLoading, setIsLoading] = useState(false);
+  // State management
+  const [bookingType, setBookingType] = useState('now');
+  const [name, setName] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [pickup, setPickup] = useState('');
+  const [destination, setDestination] = useState('');
+  const [selectedDate, setSelectedDate] = useState('');
+  const [selectedTime, setSelectedTime] = useState('');
+  const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-  const [showDriverInfo, setShowDriverInfo] = useState(false);
-  const [driverStatus, setDriverStatus] = useState('Online');
-  const [driverInfo, setDriverInfo] = useState(null);
-  const [pickupAutocomplete, setPickupAutocomplete] = useState(null);
-  const [destinationAutocomplete, setDestinationAutocomplete] = useState(null);
+  const [isConnected, setIsConnected] = useState(false);
+  const [driverStatus, setDriverStatus] = useState('Offline');
+  const [isDriverBusy, setIsDriverBusy] = useState(false);
+  const [bookingSubmitted, setBookingSubmitted] = useState(false);
 
+  const pickupRef = useRef(null);
+  const destinationRef = useRef(null);
+
+  // Socket connection management
   useEffect(() => {
     socket.on('connect', () => {
       console.log('Connected to server');
-      socket.emit('getDriverStatus', (response) => {
-        if (response) {
-          setDriverStatus(response.status);
-          setDriverInfo(response.driverInfo);
-        }
-      });
+      setIsConnected(true);
     });
 
-    socket.on('driverStatusUpdate', ({ status, driverInfo }) => {
+    socket.on('disconnect', () => {
+      console.log('Disconnected from server');
+      setIsConnected(false);
+    });
+
+    socket.on('driverStatusUpdate', ({ status }) => {
+      console.log('Driver status update:', status);
       setDriverStatus(status);
-      if (driverInfo) setDriverInfo(driverInfo);
     });
 
-    socket.on('connect_error', (error) => {
-      setError('Connection error. Please try again later.');
-      console.error('Socket connection error:', error);
+    socket.on('passengerAppStatus', ({ isOffline }) => {
+      console.log('Passenger app status:', isOffline);
+      setIsDriverBusy(isOffline);
+    });
+
+    socket.on('rideAccepted', () => {
+      setMessage('Your ride has been accepted! The driver is on the way.');
+      resetForm();
+    });
+
+    socket.on('rideDeclined', () => {
+      setError('Your ride request was declined. Please try again.');
+      resetForm();
     });
 
     return () => {
       socket.off('connect');
+      socket.off('disconnect');
       socket.off('driverStatusUpdate');
-      socket.off('connect_error');
+      socket.off('passengerAppStatus');
+      socket.off('rideAccepted');
+      socket.off('rideDeclined');
     };
   }, []);
 
-  const onPickupLoad = (autocomplete) => {
-    setPickupAutocomplete(autocomplete);
+  // Helper Functions
+  const resetForm = () => {
+    setName('');
+    setPhoneNumber('');
+    setPickup('');
+    setDestination('');
+    setSelectedDate('');
+    setSelectedTime('');
+    setBookingSubmitted(false);
   };
 
-  const onDestinationLoad = (autocomplete) => {
-    setDestinationAutocomplete(autocomplete);
+  const formatPhoneNumber = (value) => {
+    if (!value) return value;
+    const phoneNumber = value.replace(/[^\d]/g, '');
+    const phoneNumberLength = phoneNumber.length;
+    if (phoneNumberLength < 4) return phoneNumber;
+    if (phoneNumberLength < 7) {
+      return `${phoneNumber.slice(0, 3)}-${phoneNumber.slice(3)}`;
+    }
+    return `${phoneNumber.slice(0, 3)}-${phoneNumber.slice(3, 6)}-${phoneNumber.slice(6, 10)}`;
   };
 
-  const handlePlaceSelect = (type) => {
-    const autocomplete = type === 'pickup' ? pickupAutocomplete : destinationAutocomplete;
-    if (!autocomplete) return;
-
-    const place = autocomplete.getPlace();
-    if (!place.geometry) {
-      setError(`Please select a location from the dropdown for ${type}`);
-      return;
-    }
-
-    setFormData(prev => ({
-      ...prev,
-      [type]: place.formatted_address
-    }));
+  const handlePhoneChange = (e) => {
+    const formattedPhoneNumber = formatPhoneNumber(e.target.value);
+    setPhoneNumber(formattedPhoneNumber);
   };
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+  const handleBookingTypeChange = (type) => {
+    setBookingType(type);
+    setMessage('');
+    setError('');
+    resetForm();
   };
 
-  const validateForm = () => {
-    if (!formData.pickup || !formData.destination) {
-      setError('Please select both pickup and drop-off locations');
-      return false;
-    }
-    if (!formData.name.trim()) {
-      setError('Please enter your name');
-      return false;
-    }
-    if (!formData.phoneNumber.match(/^\d{10}$/)) {
-      setError('Please enter a valid 10-digit phone number');
-      return false;
-    }
-    if (activeTab === 'schedule') {
-      if (!formData.scheduledDate || !formData.scheduledTime) {
-        setError('Please select both date and time for scheduled ride');
-        return false;
-      }
-      const scheduledDateTime = moment.tz(
-        `${formData.scheduledDate} ${formData.scheduledTime}`,
-        'YYYY-MM-DD HH:mm',
-        'America/Chicago'
+  const validateScheduledTime = (date, time) => {
+    const scheduledDateTime = new Date(`${date}T${time}`);
+    const scheduledHour = scheduledDateTime.getHours();
+    // Between 7PM (19) and 8AM (8)
+    return scheduledHour >= 19 || scheduledHour < 8;
+  };
+
+  const handleGPSClick = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          const geocoder = new window.google.maps.Geocoder();
+          geocoder.geocode(
+            { location: { lat: latitude, lng: longitude } },
+            (results, status) => {
+              if (status === 'OK' && results[0]) {
+                setPickup(results[0].formatted_address);
+                if (pickupRef.current) {
+                  pickupRef.current.setPlace({
+                    formatted_address: results[0].formatted_address,
+                    geometry: results[0].geometry
+                  });
+                }
+              } else {
+                setError("Couldn't find address for this location");
+              }
+            }
+          );
+        },
+        (error) => {
+          console.error('Location error:', error);
+          setError('Unable to get your location');
+        }
       );
-      if (scheduledDateTime.isBefore(moment())) {
+    } else {
+      setError('Geolocation is not supported by your browser');
+    }
+  };
+  
+  // Form validation and submission
+  const validateForm = () => {
+    if (!name || !phoneNumber || !pickup || !destination) {
+      setError('Please fill in all required fields');
+      return false;
+    }
+    
+    if (bookingType === 'future' && (!selectedDate || !selectedTime)) {
+      setError('Please select both date and time for future bookings');
+      return false;
+    }
+    
+    const phoneRegex = /^\d{3}-\d{3}-\d{4}$/;
+    if (!phoneRegex.test(phoneNumber)) {
+      setError('Please enter a valid phone number (XXX-XXX-XXXX)');
+      return false;
+    }
+    
+    if (bookingType === 'future') {
+      const today = new Date();
+      const selectedDateTime = new Date(`${selectedDate}T${selectedTime}`);
+      
+      if (selectedDateTime <= today) {
         setError('Please select a future date and time');
         return false;
       }
+      
+      if (!validateScheduledTime(selectedDate, selectedTime)) {
+        setError('Please select a time between 7PM and 8AM');
+        return false;
+      }
     }
+    
     return true;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    console.log('Form submitted');
     setError('');
-    
+    setMessage('');
+
+    if (!isConnected) {
+      setError('Not connected to server. Please try again.');
+      return;
+    }
+
     if (!validateForm()) return;
-    
-    setIsLoading(true);
-    
+
+    const bookingData = {
+      type: 'booking-app',
+      bookingType,
+      name,
+      phoneNumber,
+      origin: pickup,
+      destination,
+      sessionId: Date.now().toString(),
+      ...(bookingType === 'future' && {
+        scheduledDate: selectedDate,
+        scheduledTime: selectedTime
+      })
+    };
+
+    console.log('Sending booking data:', bookingData);
+
     try {
-      const requestData = {
-        ...formData,
-        type: activeTab === 'request' ? 'immediate' : 'scheduled'
-      };
-
-      const eventName = activeTab === 'request' ? 'rideRequest' : 'futureBookingRequest';
-
-      socket.emit(eventName, requestData, (response) => {
-        setIsLoading(false);
+      const eventName = bookingType === 'now' ? 'rideRequest' : 'futureBookingRequest';
+      socket.emit(eventName, bookingData, (response) => {
+        console.log('Server response:', response);
         
-        if (response.error) {
-          setError(response.error);
-          return;
-        }
-
         if (response.success) {
-          setShowDriverInfo(true);
-          if (response.driverInfo) {
-            setDriverInfo(response.driverInfo);
-          }
+          setMessage(bookingType === 'now' 
+            ? 'Ride request sent! Please wait for driver confirmation.'
+            : 'Scheduling request sent. You will receive a text message confirmation.');
+          setBookingSubmitted(true);
+        } else {
+          setError(response.error || 'Failed to submit request');
         }
       });
-    } catch (error) {
-      setError('Failed to submit request. Please try again.');
-      setIsLoading(false);
+    } catch (err) {
+      console.error('Error sending booking request:', err);
+      setError('Failed to send booking request. Please try again.');
     }
   };
 
-  if (loadError) {
-    return (
-      <div className="p-4 bg-red-50 text-red-700 rounded-lg flex items-center gap-2">
-        <AlertCircle className="w-5 h-5" />
-        <span>Error loading Google Maps. Please refresh the page.</span>
-      </div>
-    );
-  }
-
-  if (!isLoaded) {
-    return (
-      <div className="flex justify-center items-center min-h-[200px]">
-        <div className="w-8 h-8 border-4 border-blue-200 rounded-full animate-spin border-t-blue-600" />
-      </div>
-    );
-  }
-
-  return (
-    <div className="max-w-md mx-auto bg-white rounded-lg p-6">
-      <h2 className="text-center text-lg text-green-600 mb-6">
-        Welcome to EV_Taxi service! Our driver is available and ready to assist you. Request a ride below or feel welcome to step in.
-      </h2>
-      
-      {!showDriverInfo ? (
-        <>
-          <div className="flex space-x-2 mb-6">
-            <button 
-              onClick={() => setActiveTab('request')}
-              className={`flex-1 py-2 px-4 rounded-lg transition-colors ${
-                activeTab === 'request' 
-                  ? 'bg-green-500 text-white' 
-                  : 'bg-gray-100 text-gray-600'
-              }`}
-            >
-              Request Now
-            </button>
-            <button 
-              onClick={() => setActiveTab('schedule')}
-              className={`flex-1 py-2 px-4 rounded-lg transition-colors ${
-                activeTab === 'schedule' 
-                  ? 'bg-green-500 text-white' 
-                  : 'bg-gray-100 text-gray-600'
-              }`}
-            >
-              Schedule Ride
-            </button>
+  // Status banner component
+  const StatusBanner = () => {
+    if (bookingType === 'now') {
+      if (driverStatus === 'Offline') {
+        return (
+          <div className="bg-red-50 text-red-800 p-4 rounded-lg mb-6 flex items-center justify-center gap-2">
+            <AlertCircle className="w-5 h-5" />
+            <p>This vehicle is currently offline, schedule a ride or try again later.</p>
           </div>
+        );
+      } else if (isDriverBusy) {
+        return (
+          <div className="bg-yellow-50 text-yellow-800 p-4 rounded-lg mb-6 flex items-center justify-center gap-2">
+            <AlertCircle className="w-5 h-5" />
+            <p>This driver is currently completing a trip. Please try again later.</p>
+          </div>
+        );
+      } else {
+        return (
+          <div className="bg-green-50 text-green-800 p-4 rounded-lg mb-6 text-center">
+            <p>Welcome to EV_Taxi service! Our driver is available and ready to assist you.</p>
+          </div>
+        );
+      }
+    } else {
+      return (
+        <div className="bg-yellow-50 text-yellow-800 p-4 rounded-lg mb-6 flex items-center justify-center gap-2">
+          <AlertCircle className="w-5 h-5" />
+          <p>Operating hours are from 7PM to 8AM.</p>
+        </div>
+      );
+    }
+  };
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <label className="block text-sm text-gray-600">Pick up</label>
-              <div className="relative">
-                <MapPin className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
-                <Autocomplete
-                  onLoad={onPickupLoad}
-                  onPlaceChanged={() => handlePlaceSelect('pickup')}
-                >
-                  <input
-                    type="text"
-                    name="pickup"
-                    placeholder="Tap the pin to get your location"
-                    value={formData.pickup}
-                    onChange={handleInputChange}
-                    className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    required
-                  />
-                </Autocomplete>
-              </div>
-            </div>
+  // Autocomplete refs
+  const onPickupLoad = useCallback((autocomplete) => {
+    pickupRef.current = autocomplete;
+  }, []);
 
-            <div className="space-y-2">
-              <label className="block text-sm text-gray-600">Drop off</label>
-              <div className="relative">
-                <MapPin className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
-                <Autocomplete
-                  onLoad={onDestinationLoad}
-                  onPlaceChanged={() => handlePlaceSelect('destination')}
-                >
-                  <input
-                    type="text"
-                    name="destination"
-                    placeholder="Where to?"
-                    value={formData.destination}
-                    onChange={handleInputChange}
-                    className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    required
-                  />
-                </Autocomplete>
-              </div>
-            </div>
+  const onDestinationLoad = useCallback((autocomplete) => {
+    destinationRef.current = autocomplete;
+  }, []);
+  
+  return (
+    <div className="max-w-2xl mx-auto p-4">
+      {/* Connection Status */}
+      {!isConnected && (
+        <div className="bg-yellow-50 text-yellow-800 p-4 rounded-lg mb-6 text-center">
+          Connecting to server...
+        </div>
+      )}
 
-            <div className="space-y-2">
-              <label className="block text-sm text-gray-600">Your Name</label>
+      {/* Status Banner */}
+      <StatusBanner />
+
+      {/* Booking Type Toggle */}
+      <div className="flex gap-2 mb-6">
+        <button
+          type="button"
+          onClick={() => handleBookingTypeChange('now')}
+          className={`flex-1 py-2 rounded-lg transition-colors ${
+            bookingType === 'now' 
+              ? 'bg-green-600 text-white' 
+              : 'bg-gray-100 text-gray-600'
+          }`}
+        >
+          Request Now
+        </button>
+        <button
+          type="button"
+          onClick={() => handleBookingTypeChange('future')}
+          className={`flex-1 py-2 rounded-lg transition-colors ${
+            bookingType === 'future' 
+              ? 'bg-green-600 text-white' 
+              : 'bg-gray-100 text-gray-600'
+          }`}
+        >
+          Schedule Ride
+        </button>
+      </div>
+
+      {/* Error and Success Messages */}
+      {error && (
+        <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-lg">
+          {error}
+        </div>
+      )}
+
+      {message && (
+        <div className="mb-4 p-3 bg-green-50 text-green-700 rounded-lg">
+          {message}
+        </div>
+      )}
+
+      {/* Booking Form */}
+      <form onSubmit={handleSubmit} className="space-y-4 mb-8">
+        {/* Pickup Location */}
+        <div>
+          <label className="block text-gray-700 mb-1">Pick up</label>
+          <div className="relative">
+            <Autocomplete
+              onLoad={onPickupLoad}
+              onPlaceChanged={() => {
+                if (pickupRef.current) {
+                  const place = pickupRef.current.getPlace();
+                  setPickup(place.formatted_address);
+                }
+              }}
+            >
               <div className="relative">
-                <User className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+                <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                 <input
                   type="text"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  placeholder="Enter pickup location"
+                  className="w-full p-3 pl-10 border rounded-lg"
+                  value={pickup}
+                  onChange={(e) => setPickup(e.target.value)}
                   required
                 />
               </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="block text-sm text-gray-600">Phone Number (Required)</label>
-              <div className="relative">
-                <Phone className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
-                <input
-                  type="tel"
-                  name="phoneNumber"
-                  placeholder="Format: XXX-XXX-XXXX"
-                  value={formData.phoneNumber}
-                  onChange={handleInputChange}
-                  className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  required
-                />
-              </div>
-            </div>
-
-            {error && (
-              <div className="p-3 bg-red-50 text-red-700 rounded-lg flex items-center gap-2">
-                <AlertCircle className="w-5 h-5" />
-                <span>{error}</span>
-              </div>
-            )}
-
+            </Autocomplete>
             <button
-              type="submit"
-              disabled={isLoading || driverStatus === 'Offline'}
-              className={`w-full py-3 rounded-lg transition-colors ${
-                isLoading || driverStatus === 'Offline'
-                  ? 'bg-gray-400 cursor-not-allowed' 
-                  : 'bg-green-500 hover:bg-green-600'
-              } text-white`}
+              type="button"
+              onClick={handleGPSClick}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-pink-500"
             >
-              {isLoading ? 'Requesting...' : 'Request Ride'}
+              📍
             </button>
-          </form>
-        </>
-      ) : (
-        driverInfo && <DriverInfo driverInfo={driverInfo} />
+          </div>
+        </div>
+
+        {/* Destination */}
+        <div>
+          <label className="block text-gray-700 mb-1">Drop off</label>
+          <div className="relative">
+            <Autocomplete
+              onLoad={onDestinationLoad}
+              onPlaceChanged={() => {
+                if (destinationRef.current) {
+                  const place = destinationRef.current.getPlace();
+                  setDestination(place.formatted_address);
+                }
+              }}
+            >
+              <div className="relative">
+                <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <input
+                  type="text"
+                  placeholder="Enter destination"
+                  className="w-full p-3 pl-10 border rounded-lg"
+                  value={destination}
+                  onChange={(e) => setDestination(e.target.value)}
+                  required
+                />
+              </div>
+            </Autocomplete>
+          </div>
+        </div>
+
+        {/* Name Input */}
+        <div className="relative">
+          <input
+            type="text"
+            placeholder="Your Name"
+            className="w-full p-3 pl-10 border rounded-lg"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+          />
+        </div>
+
+        {/* Phone Number Input */}
+        <div>
+          <div className="relative">
+            <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <input
+              type="tel"
+              placeholder="Phone Number"
+              className="w-full p-3 pl-10 border rounded-lg"
+              value={phoneNumber}
+              onChange={handlePhoneChange}
+              maxLength={12}
+              required
+            />
+          </div>
+          <p className="text-sm text-gray-600 mt-1">Format: XXX-XXX-XXXX</p>
+        </div>
+
+        {/* Future Booking Fields */}
+        {bookingType === 'future' && (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-gray-700 mb-1">Date</label>
+              <div className="relative">
+                <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <input
+                  type="date"
+                  className="w-full p-3 pl-10 border rounded-lg"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  min={new Date().toISOString().split('T')[0]}
+                  required
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-gray-700 mb-1">Time</label>
+              <div className="relative">
+                <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <input
+                  type="time"
+                  className="w-full p-3 pl-10 border rounded-lg"
+                  value={selectedTime}
+                  onChange={(e) => setSelectedTime(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        <button
+          type="submit"
+          className={`w-full p-4 rounded-lg font-medium transition-colors ${
+            !isConnected
+              ? 'bg-gray-400 cursor-not-allowed'
+              : 'bg-green-600 text-white hover:bg-green-700'
+          }`}
+          disabled={!isConnected}
+        >
+          {bookingType === 'now' ? 'Request Ride' : 'Schedule Ride'}
+        </button>
+      </form>
+
+      {/* Driver Info Section - Only show when appropriate */}
+      {((bookingType === 'now' && driverStatus === 'Online' && !isDriverBusy) || 
+        (bookingType === 'future' && bookingSubmitted)) && (
+        <div className="bg-gray-50 rounded-lg p-6 shadow-sm">
+          <h2 className="text-xl font-semibold text-center mb-6">Your Driver</h2>
+          <div className="relative mb-4">
+            <img 
+              src="/toyota-camry.png"
+              alt="Toyota Camry"
+              className="w-full rounded-lg"
+            />
+            <img 
+              src="/profile-picture.jpg"
+              alt="Driver"
+              className="absolute -bottom-6 left-1/2 -translate-x-1/2 w-20 h-20 rounded-full border-4 border-white"
+            />
+          </div>
+          
+          <div className="text-center mt-8">
+            <div className="inline-block bg-gray-800 text-white px-3 py-1 rounded-lg mb-4">
+              TNH-3537
+            </div>
+            
+            <div className="space-y-2 mb-6">
+              <p><span className="font-semibold">Name:</span> James</p>
+              <p><span className="font-semibold">Vehicle:</span> Black Toyota Camry</p>
+              <p><span className="font-semibold">Service Type:</span> Supports 4 Passengers</p>
+              <p><span className="font-semibold">Languages:</span> English</p>
+            </div>
+
+            <div className="border-t pt-4">
+              <p className="font-semibold mb-3">Payment Methods Accepted:</p>
+              <div className="flex justify-center gap-8">
+                <div className="flex flex-col items-center">
+                  <Wallet className="w-6 h-6 text-gray-700" />
+                  <span className="text-sm">Cash</span>
+                </div>
+                <div className="flex flex-col items-center">
+                  <CreditCard className="w-6 h-6 text-gray-700" />
+                  <span className="text-sm">Card</span>
+                </div>
+                <div className="flex flex-col items-center">
+                  <Phone className="w-6 h-6 text-gray-700" />
+                  <span className="text-sm">Digital</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
