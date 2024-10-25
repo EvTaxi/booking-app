@@ -1,7 +1,17 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { Autocomplete } from '@react-google-maps/api';
-import { Wallet, CreditCard, Phone } from 'lucide-react';
-import socket from '../utils/socket';
+import { Wallet, CreditCard, Phone, AlertCircle } from 'lucide-react';
+import io from 'socket.io-client';
+
+const socket = io(process.env.REACT_APP_BACKEND_URL, {
+  withCredentials: true,
+  transports: ['websocket', 'polling'],
+  reconnection: true,
+  reconnectionAttempts: Infinity,
+  reconnectionDelay: 1000,
+  reconnectionDelayMax: 5000,
+  timeout: 20000,
+});
 
 const BookingInterface = () => {
   const [bookingType, setBookingType] = useState('now');
@@ -13,38 +23,44 @@ const BookingInterface = () => {
   const [selectedTime, setSelectedTime] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [isConnected, setIsConnected] = useState(false);
 
   const pickupRef = useRef(null);
   const destinationRef = useRef(null);
 
-  const handleGPSClick = () => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const { latitude, longitude } = position.coords;
-          const geocoder = new window.google.maps.Geocoder();
-          geocoder.geocode({ location: { lat: latitude, lng: longitude } }, (results, status) => {
-            if (status === 'OK' && results[0]) {
-              setPickup(results[0].formatted_address);
-              if (pickupRef.current) {
-                pickupRef.current.setPlace({
-                  formatted_address: results[0].formatted_address,
-                  geometry: results[0].geometry
-                });
-              }
-            } else {
-              setError("Couldn't find address for this location. Please enter manually.");
-            }
-          });
-        },
-        (error) => {
-          console.error("Error getting current location:", error);
-          setError("Unable to get your location. Please enter manually.");
-        }
-      );
-    } else {
-      setError("Geolocation is not supported by your browser.");
-    }
+  React.useEffect(() => {
+    socket.on('connect', () => {
+      console.log('Connected to server');
+      setIsConnected(true);
+    });
+
+    socket.on('disconnect', () => {
+      console.log('Disconnected from server');
+      setIsConnected(false);
+    });
+
+    socket.on('connect_error', (error) => {
+      console.error('Connection error:', error);
+      setError('Unable to connect to server. Please try again later.');
+    });
+
+    return () => {
+      socket.off('connect');
+      socket.off('disconnect');
+      socket.off('connect_error');
+    };
+  }, []);
+
+  const handleBookingTypeChange = (type) => {
+    setBookingType(type);
+    setMessage('');
+    setError('');
+  };
+
+  const validateScheduledTime = (date, time) => {
+    const scheduledDateTime = new Date(`${date}T${time}`);
+    const scheduledHour = scheduledDateTime.getHours();
+    return scheduledHour >= 19 || scheduledHour < 8; // Between 7PM and 8AM
   };
 
   const formatPhoneNumber = (value) => {
@@ -85,13 +101,31 @@ const BookingInterface = () => {
       setError('Please enter a valid phone number (XXX-XXX-XXXX)');
       return false;
     }
+    if (bookingType === 'future') {
+      const today = new Date();
+      const selectedDateTime = new Date(`${selectedDate}T${selectedTime}`);
+      if (selectedDateTime <= today) {
+        setError('Please select a future date and time');
+        return false;
+      }
+      if (!validateScheduledTime(selectedDate, selectedTime)) {
+        setError('Please select a time between 7PM and 8AM');
+        return false;
+      }
+    }
     return true;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    console.log('Form submitted');
     setError('');
     setMessage('');
+
+    if (!isConnected) {
+      setError('Not connected to server. Please try again.');
+      return;
+    }
 
     if (!validateForm()) return;
 
@@ -100,7 +134,7 @@ const BookingInterface = () => {
       bookingType,
       name,
       phoneNumber,
-      pickup: pickupRef.current?.getPlace()?.formatted_address || pickup,
+      origin: pickupRef.current?.getPlace()?.formatted_address || pickup,
       destination: destinationRef.current?.getPlace()?.formatted_address || destination,
       ...(bookingType === 'future' && {
         scheduledDate: selectedDate,
@@ -108,37 +142,61 @@ const BookingInterface = () => {
       })
     };
 
-    socket.emit('bookingRequest', bookingData, (response) => {
-      if (response.success) {
-        setMessage(bookingType === 'now' 
-          ? 'Ride request sent! Please wait for driver confirmation.'
-          : 'Booking request sent! You will receive a confirmation once the driver accepts.');
+    console.log('Sending booking data:', bookingData);
+
+    try {
+      const eventName = bookingType === 'now' ? 'rideRequest' : 'futureBookingRequest';
+      socket.emit(eventName, bookingData, (response) => {
+        console.log('Server response:', response);
         
-        // Reset form
-        setName('');
-        setPhoneNumber('');
-        setPickup('');
-        setDestination('');
-        setSelectedDate('');
-        setSelectedTime('');
-      } else {
-        setError(response.error || 'Failed to submit booking request');
-      }
-    });
+        if (response.success) {
+          setMessage(bookingType === 'now' 
+            ? 'Ride request sent! Please wait for driver confirmation.'
+            : 'Ride request sent. Look out for a text message to see if the driver can fulfill this request.');
+          
+          // Reset form
+          setName('');
+          setPhoneNumber('');
+          setPickup('');
+          setDestination('');
+          setSelectedDate('');
+          setSelectedTime('');
+        } else {
+          setError(response.error || 'Failed to submit booking request');
+        }
+      });
+    } catch (err) {
+      console.error('Error sending booking request:', err);
+      setError('Failed to send booking request. Please try again.');
+    }
   };
 
   return (
     <div className="max-w-2xl mx-auto p-4">
-      {/* Welcome Banner */}
-      <div className="bg-green-50 text-green-800 p-4 rounded-lg mb-6 text-center">
-        <p>Welcome to EV_Taxi service! Our driver is available and ready to assist you. Request a ride below or feel welcome to step in.</p>
-      </div>
+      {/* Connection Status */}
+      {!isConnected && (
+        <div className="bg-yellow-50 text-yellow-800 p-4 rounded-lg mb-6 text-center">
+          Connecting to server...
+        </div>
+      )}
+
+      {/* Welcome Banner - Changes based on booking type */}
+      {bookingType === 'now' ? (
+        <div className="bg-green-50 text-green-800 p-4 rounded-lg mb-6 text-center">
+          <p>Welcome to EV_Taxi service! Our driver is available and ready to assist you. Request a ride below or feel welcome to step in.</p>
+        </div>
+      ) : (
+        <div className="bg-yellow-50 text-yellow-800 p-4 rounded-lg mb-6 flex items-center justify-center gap-2">
+          <AlertCircle className="w-5 h-5" />
+          <p>My operating hours are from 7PM to 8AM.</p>
+        </div>
+      )}
 
       {/* Booking Type Toggle */}
       <div className="flex gap-2 mb-6">
         <button
           type="button"
-          onClick={() => setBookingType('now')}
+          onClick={() => handleBookingTypeChange('now')}
           className={`flex-1 py-2 rounded-lg transition-colors ${
             bookingType === 'now' 
               ? 'bg-green-600 text-white' 
@@ -149,7 +207,7 @@ const BookingInterface = () => {
         </button>
         <button
           type="button"
-          onClick={() => setBookingType('future')}
+          onClick={() => handleBookingTypeChange('future')}
           className={`flex-1 py-2 rounded-lg transition-colors ${
             bookingType === 'future' 
               ? 'bg-green-600 text-white' 
@@ -187,13 +245,6 @@ const BookingInterface = () => {
                 required
               />
             </Autocomplete>
-            <button
-              type="button"
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-pink-500"
-              onClick={handleGPSClick}
-            >
-              📍
-            </button>
           </div>
         </div>
 
@@ -262,6 +313,7 @@ const BookingInterface = () => {
         <button
           type="submit"
           className="w-full p-4 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors"
+          disabled={!isConnected}
         >
           {bookingType === 'now' ? 'Request Ride' : 'Schedule Ride'}
         </button>
