@@ -16,6 +16,11 @@ body {
   background-color: #f3f4f6;
 }
 
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
 .loading-spinner {
   @apply w-8 h-8 border-4 border-blue-200 rounded-full animate-spin;
   border-top-color: #3b82f6;

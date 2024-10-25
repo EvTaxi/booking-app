@@ -13,7 +13,7 @@ function App() {
   if (loadError) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-red-600 text-center p-4">
+        <div className="text-red-600 text-center p-4 bg-red-50 rounded-lg">
           Error loading Google Maps: {loadError.message}
         </div>
       </div>
@@ -23,7 +23,7 @@ function App() {
   if (!isLoaded) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="loading-spinner" />
+        <div className="w-8 h-8 border-4 border-blue-200 rounded-full animate-spin border-t-blue-600" />
       </div>
     );
   }

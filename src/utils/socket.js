@@ -1,7 +1,8 @@
 import io from 'socket.io-client';
 
-// Initialize socket connection
-const socket = io(process.env.REACT_APP_BACKEND_URL, {
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'https://ev-taxi-backend-7e73753d6355.herokuapp.com';
+
+const socket = io(BACKEND_URL, {
   withCredentials: true,
   transports: ['websocket', 'polling'],
   reconnection: true,
@@ -11,7 +12,6 @@ const socket = io(process.env.REACT_APP_BACKEND_URL, {
   timeout: 20000,
 });
 
-// Socket event listeners
 socket.on('connect', () => {
   console.log('Connected to server');
 });
