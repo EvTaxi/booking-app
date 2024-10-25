@@ -1,38 +1,143 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 .App {
-  text-align: center;
+  @apply max-w-2xl mx-auto p-4;
 }
 
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
+/* Card Styles */
+.card {
+  @apply bg-white rounded-lg shadow-sm p-4 mb-4;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
+.card-header {
+  @apply flex items-start justify-between mb-3;
 }
 
-.App-header {
-  background-color: #282c34;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-size: calc(10px + 2vmin);
-  color: white;
+.card-title {
+  @apply text-xl font-semibold mb-4;
 }
 
-.App-link {
-  color: #61dafb;
+/* Status Badges */
+.status-badge {
+  @apply px-2 py-1 rounded text-sm;
 }
 
-@keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+.status-badge-pending {
+  @apply bg-yellow-100 text-yellow-800;
+}
+
+.status-badge-confirmed {
+  @apply bg-green-100 text-green-800;
+}
+
+.status-badge-completed {
+  @apply bg-blue-100 text-blue-800;
+}
+
+.status-badge-declined {
+  @apply bg-red-100 text-red-800;
+}
+
+/* Button Styles */
+.btn {
+  @apply px-4 py-2 rounded transition-colors duration-200 font-medium;
+}
+
+.btn-primary {
+  @apply bg-blue-500 text-white hover:bg-blue-600;
+}
+
+.btn-success {
+  @apply bg-green-500 text-white hover:bg-green-600;
+}
+
+.btn-danger {
+  @apply bg-red-500 text-white hover:bg-red-600;
+}
+
+.btn-disabled {
+  @apply bg-gray-300 cursor-not-allowed;
+}
+
+/* Tab Styles */
+.tab-button {
+  @apply flex-1 py-2 rounded-lg transition-colors;
+}
+
+.tab-button-active {
+  @apply bg-blue-600 text-white;
+}
+
+.tab-button-inactive {
+  @apply bg-gray-100 text-gray-600;
+}
+
+/* Toggle Switch Styles */
+.toggle-switch {
+  @apply relative inline-flex items-center h-14 w-28 rounded-full transition-colors;
+}
+
+.toggle-switch-online {
+  @apply bg-green-500;
+}
+
+.toggle-switch-offline {
+  @apply bg-gray-400;
+}
+
+.toggle-handle {
+  @apply absolute w-12 h-12 bg-white rounded-full shadow transition-transform duration-200 ease-in-out;
+}
+
+/* Notification Badge */
+.notification-badge {
+  @apply ml-2 bg-red-500 text-white px-2 py-0.5 rounded-full text-sm;
+}
+
+/* Call Button */
+.call-button {
+  @apply p-2 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition-colors;
+}
+
+/* Driver Status */
+.driver-status {
+  @apply text-lg font-medium;
+}
+
+.driver-status-online {
+  @apply text-green-600;
+}
+
+.driver-status-offline {
+  @apply text-gray-600;
+}
+
+.driver-status-trip {
+  @apply text-blue-600;
+}
+
+/* Alert Styles */
+.alert {
+  @apply p-3 rounded-lg mb-4;
+}
+
+.alert-error {
+  @apply bg-red-50 text-red-700;
+}
+
+.alert-success {
+  @apply bg-green-50 text-green-700;
+}
+
+/* Icon Buttons */
+.icon-button {
+  @apply p-2 rounded-full transition-colors;
+}
+
+/* Loading Spinner */
+.loading-spinner {
+  @apply w-8 h-8 border-4 border-blue-200 rounded-full animate-spin;
+  border-top-color: #3b82f6;
 }

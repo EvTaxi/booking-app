@@ -21,7 +21,22 @@ code {
     monospace;
 }
 
-.loading-spinner {
-  @apply w-8 h-8 border-4 border-blue-200 rounded-full animate-spin;
-  border-top-color: #3b82f6;
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
 }
