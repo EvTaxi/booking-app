@@ -21,66 +21,67 @@ const BookingInterface = () => {
   const [bookingSubmitted, setBookingSubmitted] = useState(false);
   const [fareEstimate, setFareEstimate] = useState(null);
   const [showFareEstimate, setShowFareEstimate] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const pickupRef = useRef(null);
   const destinationRef = useRef(null);
 
   // Socket connection management
   useEffect(() => {
-  socket.on('connect', () => {
-    console.log('Connected to server');
-    setIsConnected(true);
-  });
+    socket.on('connect', () => {
+      console.log('Connected to server');
+      setIsConnected(true);
+    });
 
-  socket.on('disconnect', () => {
-    console.log('Disconnected from server');
-    setIsConnected(false);
-  });
+    socket.on('disconnect', () => {
+      console.log('Disconnected from server');
+      setIsConnected(false);
+    });
 
-  socket.on('driverStatusUpdate', ({ status }) => {
-    console.log('Driver status update:', status);
-    setDriverStatus(status);
-  });
+    socket.on('driverStatusUpdate', ({ status }) => {
+      console.log('Driver status update:', status);
+      setDriverStatus(status);
+    });
 
-  socket.on('passengerAppStatus', ({ isOffline }) => {
-    console.log('Passenger app status:', isOffline);
-    setIsDriverBusy(isOffline);
-  });
+    socket.on('passengerAppStatus', ({ isOffline }) => {
+      console.log('Passenger app status:', isOffline);
+      setIsDriverBusy(isOffline);
+    });
 
-  socket.on('rideAccepted', () => {
-    setMessage('Your ride has been accepted! The driver is on the way.');
-    resetForm();
-  });
+    socket.on('rideAccepted', () => {
+      setMessage('Your ride has been accepted! The driver is on the way.');
+      resetForm();
+    });
 
-  socket.on('rideDeclined', () => {
-    setError('Your ride request was declined. Please try again.');
-    setIsSubmitting(false); // Allow new submission if declined
-    resetForm();
-  });
+    socket.on('rideDeclined', () => {
+      setError('Your ride request was declined. Please try again.');
+      setIsSubmitting(false);
+      resetForm();
+    });
 
-  return () => {
-    socket.off('connect');
-    socket.off('disconnect');
-    socket.off('driverStatusUpdate');
-    socket.off('passengerAppStatus');
-    socket.off('rideAccepted');
-    socket.off('rideDeclined');
-  };
-}, []);
+    return () => {
+      socket.off('connect');
+      socket.off('disconnect');
+      socket.off('driverStatusUpdate');
+      socket.off('passengerAppStatus');
+      socket.off('rideAccepted');
+      socket.off('rideDeclined');
+    };
+  }, []);
 
   // Helper Functions
   const resetForm = () => {
-  setName('');
-  setPhoneNumber('');
-  setPickup('');
-  setDestination('');
-  setSelectedDate('');
-  setSelectedTime('');
-  setBookingSubmitted(false);
-  setFareEstimate(null);
-  setShowFareEstimate(false);
-  setIsSubmitting(false);  // Add this line
-};
+    setName('');
+    setPhoneNumber('');
+    setPickup('');
+    setDestination('');
+    setSelectedDate('');
+    setSelectedTime('');
+    setBookingSubmitted(false);
+    setFareEstimate(null);
+    setShowFareEstimate(false);
+    setIsSubmitting(false);
+  };
 
   const formatPhoneNumber = (value) => {
     if (!value) return value;
@@ -153,7 +154,12 @@ const BookingInterface = () => {
     return true;
   };
 
-  // Form validation and submission
+  const validateScheduledTime = (date, time) => {
+    const scheduledDateTime = new Date(`${date}T${time}`);
+    const scheduledHour = scheduledDateTime.getHours();
+    return scheduledHour >= 19 || scheduledHour < 8;
+  };
+
   const validateForm = () => {
     if (!name || !phoneNumber || !pickup || !destination) {
       setError('Please fill in all required fields');
@@ -189,71 +195,37 @@ const BookingInterface = () => {
     return true;
   };
 
-  const validateScheduledTime = (date, time) => {
-    const scheduledDateTime = new Date(`${date}T${time}`);
-    const scheduledHour = scheduledDateTime.getHours();
-    // Between 7PM (19) and 8AM (8)
-    return scheduledHour >= 19 || scheduledHour < 8;
-  };
-
   const handleSubmit = async (e) => {
-  e.preventDefault();
-  setError('');
-  setMessage('');
+    e.preventDefault();
+    setError('');
+    setMessage('');
 
-  if (!isConnected) {
-    setError('Not connected to server. Please try again.');
-    return;
-  }
+    if (!isConnected) {
+      setError('Not connected to server. Please try again.');
+      return;
+    }
 
-  if (isSubmitting) {
-    return;
-  }
+    if (isSubmitting) {
+      return;
+    }
 
-  if (!validateForm()) return;
+    if (!validateForm()) return;
 
-  setIsSubmitting(true);
+    setIsSubmitting(true);
 
-  const bookingData = {
-    type: 'booking-app',
-    bookingType,
-    name,
-    phoneNumber,
-    origin: pickup,
-    destination,
-    sessionId: Date.now().toString(),
-    ...(bookingType === 'future' && {
-      scheduledDate: selectedDate,
-      scheduledTime: selectedTime
-    })
-  };
-
-  try {
-    const eventName = bookingType === 'now' ? 'rideRequest' : 'futureBookingRequest';
-    socket.emit(eventName, bookingData, (response) => {
-      console.log('Server response:', response);
-      
-      if (response.success) {
-        setMessage(bookingType === 'now' 
-          ? 'Ride request sent! Please wait for driver confirmation.'
-          : 'Scheduling request sent. You will receive a text message confirmation.');
-        setBookingSubmitted(true);
-        
-        if (response.fareDetails) {
-          setFareEstimate(response.fareDetails);
-          setShowFareEstimate(true);
-        }
-      } else {
-        setError(response.error || 'Failed to submit request');
-        setIsSubmitting(false); // Allow retry on failure
-      }
-    });
-  } catch (err) {
-    console.error('Error sending booking request:', err);
-    setError('Failed to send booking request. Please try again.');
-    setIsSubmitting(false); // Allow retry on error
-  }
-};
+    const bookingData = {
+      type: 'booking-app',
+      bookingType,
+      name,
+      phoneNumber,
+      origin: pickup,
+      destination,
+      sessionId: Date.now().toString(),
+      ...(bookingType === 'future' && {
+        scheduledDate: selectedDate,
+        scheduledTime: selectedTime
+      })
+    };
 
     try {
       const eventName = bookingType === 'now' ? 'rideRequest' : 'futureBookingRequest';
@@ -272,15 +244,16 @@ const BookingInterface = () => {
           }
         } else {
           setError(response.error || 'Failed to submit request');
+          setIsSubmitting(false);
         }
       });
     } catch (err) {
       console.error('Error sending booking request:', err);
       setError('Failed to send booking request. Please try again.');
+      setIsSubmitting(false);
     }
   };
 
-  // Status banner component
   const StatusBanner = () => {
     if (bookingType === 'now') {
       if (driverStatus === 'Offline') {
@@ -313,7 +286,7 @@ const BookingInterface = () => {
       );
     }
   };
-
+  
   return (
     <div className="max-w-2xl mx-auto p-4">
       {/* Connection Status */}
@@ -455,20 +428,20 @@ const BookingInterface = () => {
 
           {/* Phone Number Input */}
           <div>
-  <div className="relative">
-    <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-    <input
-      type="tel"
-      placeholder="Phone Number"
-      className="w-full p-3 pl-10 border rounded-lg"
-      value={phoneNumber}
-      onChange={handlePhoneChange}
-      maxLength={12}
-      required
-    />
-  </div>
-  <p className="text-sm text-gray-600 mt-1">Format: XXX-XXX-XXXX</p>
-</div>
+            <div className="relative">
+              <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <input
+                type="tel"
+                placeholder="Phone Number"
+                className="w-full p-3 pl-10 border rounded-lg"
+                value={phoneNumber}
+                onChange={handlePhoneChange}
+                maxLength={12}
+                required
+              />
+            </div>
+            <p className="text-sm text-gray-600 mt-1">Format: XXX-XXX-XXXX</p>
+          </div>
 
           {/* Future Booking Fields */}
           {bookingType === 'future' && (
@@ -504,20 +477,20 @@ const BookingInterface = () => {
           )}
 
           <button
-  type="submit"
-  className={`w-full p-4 rounded-lg font-medium transition-colors ${
-    !isConnected || isSubmitting
-      ? 'bg-gray-400 cursor-not-allowed'
-      : 'bg-green-600 text-white hover:bg-green-700'
-  }`}
-  disabled={!isConnected || isSubmitting}
->
-  {isSubmitting 
-    ? 'Request Submitted - Please Wait' 
-    : bookingType === 'now' 
-      ? 'Request Ride' 
-      : 'Schedule Ride'}
-</button>
+            type="submit"
+            className={`w-full p-4 rounded-lg font-medium transition-colors ${
+              !isConnected || isSubmitting
+                ? 'bg-gray-400 cursor-not-allowed'
+                : 'bg-green-600 text-white hover:bg-green-700'
+            }`}
+            disabled={!isConnected || isSubmitting}
+          >
+            {isSubmitting 
+              ? 'Request Submitted - Please Wait' 
+              : bookingType === 'now' 
+                ? 'Request Ride' 
+                : 'Schedule Ride'}
+          </button>
         </form>
       )}
 
