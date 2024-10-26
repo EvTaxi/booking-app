@@ -230,7 +230,7 @@ const BookingInterface = () => {
         
         if (response.success) {
           setMessage(bookingType === 'now' 
-            ? 'Ride request sent! Please wait for driver confirmation. Refresh page to submit another request.'
+            ? 'Ride request sent!'
             : 'Scheduling request sent. You will receive a text message confirmation. Refresh page to submit another request.');
           setBookingSubmitted(true);
           
@@ -268,7 +268,7 @@ const BookingInterface = () => {
       } else {
         return (
           <div className="bg-green-50 text-green-800 p-4 rounded-lg mb-6 text-center">
-            <p>Welcome to EV_Taxi service! Our driver is available and ready to assist you.</p>
+            <p>Welcome to EV_Taxi service. This Ride is avabilable! Submit a request.</p>
           </div>
         );
       }
@@ -490,7 +490,7 @@ const BookingInterface = () => {
             disabled={!isConnected || hasSubmitted}
           >
             {hasSubmitted 
-              ? 'Request Submitted - Refresh page to submit another' 
+              ? 'Request Submitted' 
               : bookingType === 'now' 
                 ? 'Request Ride' 
                 : 'Schedule Ride'}
