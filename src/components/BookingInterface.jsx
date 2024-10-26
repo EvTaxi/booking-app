@@ -21,7 +21,7 @@ const BookingInterface = () => {
   const [bookingSubmitted, setBookingSubmitted] = useState(false);
   const [fareEstimate, setFareEstimate] = useState(null);
   const [showFareEstimate, setShowFareEstimate] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [hasSubmitted, setHasSubmitted] = useState(false);
 
   const pickupRef = useRef(null);
   const destinationRef = useRef(null);
@@ -50,13 +50,10 @@ const BookingInterface = () => {
 
     socket.on('rideAccepted', () => {
       setMessage('Your ride has been accepted! The driver is on the way.');
-      resetForm();
     });
 
     socket.on('rideDeclined', () => {
-      setError('Your ride request was declined. Please try again.');
-      setIsSubmitting(false);
-      resetForm();
+      setError('Your ride request was declined. Please refresh page to try again.');
     });
 
     return () => {
@@ -68,21 +65,8 @@ const BookingInterface = () => {
       socket.off('rideDeclined');
     };
   }, []);
-
+  
   // Helper Functions
-  const resetForm = () => {
-    setName('');
-    setPhoneNumber('');
-    setPickup('');
-    setDestination('');
-    setSelectedDate('');
-    setSelectedTime('');
-    setBookingSubmitted(false);
-    setFareEstimate(null);
-    setShowFareEstimate(false);
-    setIsSubmitting(false);
-  };
-
   const formatPhoneNumber = (value) => {
     if (!value) return value;
     const phoneNumber = value.replace(/[^\d]/g, '');
@@ -100,10 +84,20 @@ const BookingInterface = () => {
   };
 
   const handleBookingTypeChange = (type) => {
-    setBookingType(type);
-    setMessage('');
-    setError('');
-    resetForm();
+    if (!hasSubmitted) {
+      setBookingType(type);
+      setMessage('');
+      setError('');
+      setName('');
+      setPhoneNumber('');
+      setPickup('');
+      setDestination('');
+      setSelectedDate('');
+      setSelectedTime('');
+      setBookingSubmitted(false);
+      setFareEstimate(null);
+      setShowFareEstimate(false);
+    }
   };
 
   const onPickupLoad = useCallback((autocomplete) => {
@@ -197,6 +191,12 @@ const BookingInterface = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Block if already submitted once
+    if (hasSubmitted) {
+      return;
+    }
+
     setError('');
     setMessage('');
 
@@ -205,13 +205,9 @@ const BookingInterface = () => {
       return;
     }
 
-    if (isSubmitting) {
-      return;
-    }
-
     if (!validateForm()) return;
 
-    setIsSubmitting(true);
+    setHasSubmitted(true); // Set this flag on first submission
 
     const bookingData = {
       type: 'booking-app',
@@ -234,8 +230,8 @@ const BookingInterface = () => {
         
         if (response.success) {
           setMessage(bookingType === 'now' 
-            ? 'Ride request sent! Please wait for driver confirmation.'
-            : 'Scheduling request sent. You will receive a text message confirmation.');
+            ? 'Ride request sent! Please wait for driver confirmation. Refresh page to submit another request.'
+            : 'Scheduling request sent. You will receive a text message confirmation. Refresh page to submit another request.');
           setBookingSubmitted(true);
           
           if (response.fareDetails) {
@@ -243,17 +239,16 @@ const BookingInterface = () => {
             setShowFareEstimate(true);
           }
         } else {
-          setError(response.error || 'Failed to submit request');
-          setIsSubmitting(false);
+          setError(response.error || 'Failed to submit request. Please refresh and try again.');
         }
       });
     } catch (err) {
       console.error('Error sending booking request:', err);
-      setError('Failed to send booking request. Please try again.');
-      setIsSubmitting(false);
+      setError('Failed to send booking request. Please refresh and try again.');
     }
   };
 
+  // Status banner component
   const StatusBanner = () => {
     if (bookingType === 'now') {
       if (driverStatus === 'Offline') {
@@ -309,6 +304,7 @@ const BookingInterface = () => {
               ? 'bg-green-600 text-white' 
               : 'bg-gray-100 text-gray-600'
           }`}
+          disabled={hasSubmitted}
         >
           Request Now
         </button>
@@ -320,6 +316,7 @@ const BookingInterface = () => {
               ? 'bg-green-600 text-white' 
               : 'bg-gray-100 text-gray-600'
           }`}
+          disabled={hasSubmitted}
         >
           Schedule Ride
         </button>
@@ -373,6 +370,7 @@ const BookingInterface = () => {
                     value={pickup}
                     onChange={(e) => setPickup(e.target.value)}
                     required
+                    disabled={hasSubmitted}
                   />
                 </div>
               </Autocomplete>
@@ -380,6 +378,7 @@ const BookingInterface = () => {
                 type="button"
                 onClick={handleGPSClick}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-pink-500"
+                disabled={hasSubmitted}
               >
                 📍
               </button>
@@ -408,6 +407,7 @@ const BookingInterface = () => {
                     value={destination}
                     onChange={(e) => setDestination(e.target.value)}
                     required
+                    disabled={hasSubmitted}
                   />
                 </div>
               </Autocomplete>
@@ -423,6 +423,7 @@ const BookingInterface = () => {
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
+              disabled={hasSubmitted}
             />
           </div>
 
@@ -438,6 +439,7 @@ const BookingInterface = () => {
                 onChange={handlePhoneChange}
                 maxLength={12}
                 required
+                disabled={hasSubmitted}
               />
             </div>
             <p className="text-sm text-gray-600 mt-1">Format: XXX-XXX-XXXX</p>
@@ -457,6 +459,7 @@ const BookingInterface = () => {
                     onChange={(e) => setSelectedDate(e.target.value)}
                     min={new Date().toISOString().split('T')[0]}
                     required
+                    disabled={hasSubmitted}
                   />
                 </div>
               </div>
@@ -470,6 +473,7 @@ const BookingInterface = () => {
                     value={selectedTime}
                     onChange={(e) => setSelectedTime(e.target.value)}
                     required
+                    disabled={hasSubmitted}
                   />
                 </div>
               </div>
@@ -479,14 +483,14 @@ const BookingInterface = () => {
           <button
             type="submit"
             className={`w-full p-4 rounded-lg font-medium transition-colors ${
-              !isConnected || isSubmitting
+              !isConnected || hasSubmitted
                 ? 'bg-gray-400 cursor-not-allowed'
                 : 'bg-green-600 text-white hover:bg-green-700'
             }`}
-            disabled={!isConnected || isSubmitting}
+            disabled={!isConnected || hasSubmitted}
           >
-            {isSubmitting 
-              ? 'Request Submitted - Please Wait' 
+            {hasSubmitted 
+              ? 'Request Submitted - Refresh page to submit another' 
               : bookingType === 'now' 
                 ? 'Request Ride' 
                 : 'Schedule Ride'}
