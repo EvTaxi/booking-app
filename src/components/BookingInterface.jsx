@@ -27,58 +27,60 @@ const BookingInterface = () => {
 
   // Socket connection management
   useEffect(() => {
-    socket.on('connect', () => {
-      console.log('Connected to server');
-      setIsConnected(true);
-    });
+  socket.on('connect', () => {
+    console.log('Connected to server');
+    setIsConnected(true);
+  });
 
-    socket.on('disconnect', () => {
-      console.log('Disconnected from server');
-      setIsConnected(false);
-    });
+  socket.on('disconnect', () => {
+    console.log('Disconnected from server');
+    setIsConnected(false);
+  });
 
-    socket.on('driverStatusUpdate', ({ status }) => {
-      console.log('Driver status update:', status);
-      setDriverStatus(status);
-    });
+  socket.on('driverStatusUpdate', ({ status }) => {
+    console.log('Driver status update:', status);
+    setDriverStatus(status);
+  });
 
-    socket.on('passengerAppStatus', ({ isOffline }) => {
-      console.log('Passenger app status:', isOffline);
-      setIsDriverBusy(isOffline);
-    });
+  socket.on('passengerAppStatus', ({ isOffline }) => {
+    console.log('Passenger app status:', isOffline);
+    setIsDriverBusy(isOffline);
+  });
 
-    socket.on('rideAccepted', () => {
-      setMessage('Your ride has been accepted! The driver is on the way.');
-      resetForm();
-    });
+  socket.on('rideAccepted', () => {
+    setMessage('Your ride has been accepted! The driver is on the way.');
+    resetForm();
+  });
 
-    socket.on('rideDeclined', () => {
-      setError('Your ride request was declined. Please try again.');
-      resetForm();
-    });
+  socket.on('rideDeclined', () => {
+    setError('Your ride request was declined. Please try again.');
+    setIsSubmitting(false); // Allow new submission if declined
+    resetForm();
+  });
 
-    return () => {
-      socket.off('connect');
-      socket.off('disconnect');
-      socket.off('driverStatusUpdate');
-      socket.off('passengerAppStatus');
-      socket.off('rideAccepted');
-      socket.off('rideDeclined');
-    };
-  }, []);
+  return () => {
+    socket.off('connect');
+    socket.off('disconnect');
+    socket.off('driverStatusUpdate');
+    socket.off('passengerAppStatus');
+    socket.off('rideAccepted');
+    socket.off('rideDeclined');
+  };
+}, []);
 
   // Helper Functions
   const resetForm = () => {
-    setName('');
-    setPhoneNumber('');
-    setPickup('');
-    setDestination('');
-    setSelectedDate('');
-    setSelectedTime('');
-    setBookingSubmitted(false);
-    setFareEstimate(null);
-    setShowFareEstimate(false);
-  };
+  setName('');
+  setPhoneNumber('');
+  setPickup('');
+  setDestination('');
+  setSelectedDate('');
+  setSelectedTime('');
+  setBookingSubmitted(false);
+  setFareEstimate(null);
+  setShowFareEstimate(false);
+  setIsSubmitting(false);  // Add this line
+};
 
   const formatPhoneNumber = (value) => {
     if (!value) return value;
@@ -195,30 +197,63 @@ const BookingInterface = () => {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    setMessage('');
+  e.preventDefault();
+  setError('');
+  setMessage('');
 
-    if (!isConnected) {
-      setError('Not connected to server. Please try again.');
-      return;
-    }
+  if (!isConnected) {
+    setError('Not connected to server. Please try again.');
+    return;
+  }
 
-    if (!validateForm()) return;
+  if (isSubmitting) {
+    return;
+  }
 
-    const bookingData = {
-      type: 'booking-app',
-      bookingType,
-      name,
-      phoneNumber,
-      origin: pickup,
-      destination,
-      sessionId: Date.now().toString(),
-      ...(bookingType === 'future' && {
-        scheduledDate: selectedDate,
-        scheduledTime: selectedTime
-      })
-    };
+  if (!validateForm()) return;
+
+  setIsSubmitting(true);
+
+  const bookingData = {
+    type: 'booking-app',
+    bookingType,
+    name,
+    phoneNumber,
+    origin: pickup,
+    destination,
+    sessionId: Date.now().toString(),
+    ...(bookingType === 'future' && {
+      scheduledDate: selectedDate,
+      scheduledTime: selectedTime
+    })
+  };
+
+  try {
+    const eventName = bookingType === 'now' ? 'rideRequest' : 'futureBookingRequest';
+    socket.emit(eventName, bookingData, (response) => {
+      console.log('Server response:', response);
+      
+      if (response.success) {
+        setMessage(bookingType === 'now' 
+          ? 'Ride request sent! Please wait for driver confirmation.'
+          : 'Scheduling request sent. You will receive a text message confirmation.');
+        setBookingSubmitted(true);
+        
+        if (response.fareDetails) {
+          setFareEstimate(response.fareDetails);
+          setShowFareEstimate(true);
+        }
+      } else {
+        setError(response.error || 'Failed to submit request');
+        setIsSubmitting(false); // Allow retry on failure
+      }
+    });
+  } catch (err) {
+    console.error('Error sending booking request:', err);
+    setError('Failed to send booking request. Please try again.');
+    setIsSubmitting(false); // Allow retry on error
+  }
+};
 
     try {
       const eventName = bookingType === 'now' ? 'rideRequest' : 'futureBookingRequest';
@@ -469,16 +504,20 @@ const BookingInterface = () => {
           )}
 
           <button
-            type="submit"
-            className={`w-full p-4 rounded-lg font-medium transition-colors ${
-              !isConnected
-                ? 'bg-gray-400 cursor-not-allowed'
-                : 'bg-green-600 text-white hover:bg-green-700'
-            }`}
-            disabled={!isConnected}
-          >
-            {bookingType === 'now' ? 'Request Ride' : 'Schedule Ride'}
-          </button>
+  type="submit"
+  className={`w-full p-4 rounded-lg font-medium transition-colors ${
+    !isConnected || isSubmitting
+      ? 'bg-gray-400 cursor-not-allowed'
+      : 'bg-green-600 text-white hover:bg-green-700'
+  }`}
+  disabled={!isConnected || isSubmitting}
+>
+  {isSubmitting 
+    ? 'Request Submitted - Please Wait' 
+    : bookingType === 'now' 
+      ? 'Request Ride' 
+      : 'Schedule Ride'}
+</button>
         </form>
       )}
 
