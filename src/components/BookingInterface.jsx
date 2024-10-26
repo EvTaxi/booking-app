@@ -420,20 +420,20 @@ const BookingInterface = () => {
 
           {/* Phone Number Input */}
           <div>
-            <div className="relative">
-              <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-              <input
-                type="tel"
-                placeholder="Phone Number"
-                className="w-full p-3 pl-10 border rounded-lg"
-                value={phoneNumber}
-                onChange={handlePhoneChange}
-                maxLength={12}
-                required
-              />
-            </div>
-            <p className="text<p className="text-sm text-gray-600 mt-1">Format: XXX-XXX-XXXX</p>
-          </div>
+  <div className="relative">
+    <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+    <input
+      type="tel"
+      placeholder="Phone Number"
+      className="w-full p-3 pl-10 border rounded-lg"
+      value={phoneNumber}
+      onChange={handlePhoneChange}
+      maxLength={12}
+      required
+    />
+  </div>
+  <p className="text-sm text-gray-600 mt-1">Format: XXX-XXX-XXXX</p>
+</div>
 
           {/* Future Booking Fields */}
           {bookingType === 'future' && (
