@@ -268,7 +268,7 @@ const BookingInterface = () => {
       } else {
         return (
           <div className="bg-green-50 text-green-800 p-4 rounded-lg mb-6 text-center">
-            <p>Welcome to EV_Taxi service. This Ride is avabilable! Submit a request.</p>
+            <p>This Ride is Avabilable! Submit a request and the driver will pick you up.</p>
           </div>
         );
       }

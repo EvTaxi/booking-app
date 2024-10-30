@@ -67,7 +67,7 @@ const FareEstimate = ({ fareDetails }) => {
 
       <div className="flex items-center gap-2 mt-3 text-sm text-black">
         <AlertTriangle className="w-4 h-4" />
-        <p>Final fare may vary based on actual route and conditions</p>
+        <p>This is just an estimate, not a final price.</p>
       </div>
     </div>
   );
