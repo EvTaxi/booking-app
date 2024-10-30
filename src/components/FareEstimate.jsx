@@ -16,37 +16,37 @@ const FareEstimate = ({ fareDetails }) => {
   };
 
   return (
-    <div className="bg-green-50 dark:bg-green-900/30 text-green-800 dark:text-green-200 p-4 rounded-lg mb-6">
-      <h3 className="font-semibold text-lg mb-3">Estimated Fare Breakdown</h3>
+    <div className="bg-gray-200 p-4 rounded-lg mb-6">
+      <h3 className="font-semibold text-lg mb-3 text-black">Estimated Fare Breakdown</h3>
       <div className="space-y-2">
         <div className="flex justify-between">
-          <span>Base Fare:</span>
-          <span>${baseFare.toFixed(2)}</span>
+          <span className="text-black">Base Fare:</span>
+          <span className="text-green-600">${baseFare.toFixed(2)}</span>
         </div>
         <div className="flex justify-between">
-          <span>Distance ({distance} miles):</span>
-          <span>${distanceCost}</span>
+          <span className="text-black">Distance ({distance} miles):</span>
+          <span className="text-green-600">${distanceCost}</span>
         </div>
         <div className="flex justify-between">
-          <span>Time ({duration} mins):</span>
-          <span>${timeCost}</span>
+          <span className="text-black">Time ({duration} mins):</span>
+          <span className="text-green-600">${timeCost}</span>
         </div>
         {destination?.toLowerCase().includes('dfw airport') && (
           <>
             <div className="flex justify-between">
-              <span>Airport Exit Fee:</span>
-              <span>$4.12</span>
+              <span className="text-black">Airport Exit Fee:</span>
+              <span className="text-green-600">$4.12</span>
             </div>
             <div className="flex justify-between">
-              <span>Airport Drop-off Fee:</span>
-              <span>$3.12</span>
+              <span className="text-black">Airport Drop-off Fee:</span>
+              <span className="text-green-600">$3.12</span>
             </div>
           </>
         )}
-        <div className="border-t border-green-200 dark:border-green-700 pt-2 mt-2">
+        <div className="border-t border-gray-300 pt-2 mt-2">
           <div className="flex justify-between font-bold">
-            <span>Total Estimate:</span>
-            <span>${fare.toFixed(2)}</span>
+            <span className="text-black">Total Estimate:</span>
+            <span className="text-green-600">${fare.toFixed(2)}</span>
           </div>
         </div>
       </div>
@@ -57,7 +57,7 @@ const FareEstimate = ({ fareDetails }) => {
             href={getWazeLink(destination)}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center justify-center gap-2 w-full bg-blue-500 hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700 text-white py-2 px-4 rounded transition-colors"
+            className="flex items-center justify-center gap-2 w-full bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded transition-colors"
           >
             <Navigation className="w-4 h-4" />
             Navigate with Waze
@@ -65,7 +65,7 @@ const FareEstimate = ({ fareDetails }) => {
         </div>
       )}
 
-      <div className="flex items-center gap-2 mt-3 text-sm text-green-600 dark:text-green-400">
+      <div className="flex items-center gap-2 mt-3 text-sm text-black">
         <AlertTriangle className="w-4 h-4" />
         <p>Final fare may vary based on actual route and conditions</p>
       </div>
