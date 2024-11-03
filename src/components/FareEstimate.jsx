@@ -6,7 +6,7 @@ const FareEstimate = ({ fareDetails }) => {
 
   const { distance, duration, fare, destination } = fareDetails;
   const baseFare = 3.00;
-  const distanceCost = (distance * 2.80).toFixed(2);
+  const distanceCost = (distance * 5.80).toFixed(2);
   const timeCost = (duration * 0.40).toFixed(2);
 
   const getWazeLink = (address) => {
@@ -67,7 +67,7 @@ const FareEstimate = ({ fareDetails }) => {
 
       <div className="flex items-center gap-2 mt-3 text-sm text-black">
         <AlertTriangle className="w-4 h-4" />
-        <p>This is just an estimate, not a final price. Actual fare may vary based on route changes, additional stops, etc.</p>
+        <p>This is just an estimate. not a final price. prices are negotiable with the driver.</p>
       </div>
     </div>
   );
