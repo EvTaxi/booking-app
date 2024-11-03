@@ -67,7 +67,7 @@ const FareEstimate = ({ fareDetails }) => {
 
       <div className="flex items-center gap-2 mt-3 text-sm text-black">
         <AlertTriangle className="w-4 h-4" />
-        <p>This Price is based off of standard Taxi Rates in Dallas, Texas. ($2.80 per mile, 0.40c per minute.)</p>
+        <p>This is just an estimate, not a final price. Actual fare may vary based on route changes, additional stops, etc.</p>
       </div>
     </div>
   );
