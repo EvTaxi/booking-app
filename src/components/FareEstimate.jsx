@@ -67,7 +67,7 @@ const FareEstimate = ({ fareDetails }) => {
 
       <div className="flex items-center gap-2 mt-3 text-sm text-black">
         <AlertTriangle className="w-4 h-4" />
-        <p>Estimates are based on standard taxi rates in Dallas, TX. Actual fares may vary depending on traffic, weather, time of day, and other conditions..</p>
+        <p>Estimates are based on standard taxi rates in Dallas, TX. Price shown is not final.</p>
       </div>
     </div>
   );
