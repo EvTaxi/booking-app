@@ -25,12 +25,13 @@ const BookingInterface = () => {
 
   const pickupRef = useRef(null);
   const destinationRef = useRef(null);
-
+  
   // Socket connection management
   useEffect(() => {
     socket.on('connect', () => {
       console.log('Connected to server');
       setIsConnected(true);
+      // Reset message on connect to handle page refreshes
       setMessage('');
     });
 
@@ -50,9 +51,7 @@ const BookingInterface = () => {
     });
 
     socket.on('rideAccepted', () => {
-      if (bookingType === 'now') {
-        setMessage('Ride request sent!');
-      }
+      setMessage('Your ride has been accepted! The driver is on the way.');
     });
 
     socket.on('rideDeclined', () => {
@@ -67,7 +66,7 @@ const BookingInterface = () => {
       socket.off('rideAccepted');
       socket.off('rideDeclined');
     };
-  }, [bookingType]);
+  }, []);
   
   // Helper Functions
   const formatPhoneNumber = (value) => {
@@ -102,7 +101,7 @@ const BookingInterface = () => {
       setShowFareEstimate(false);
     }
   };
-
+  
   const onPickupLoad = useCallback((autocomplete) => {
     pickupRef.current = autocomplete;
   }, []);
@@ -191,10 +190,11 @@ const BookingInterface = () => {
     
     return true;
   };
-
+  
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    // Block if already submitted once
     if (hasSubmitted) {
       return;
     }
@@ -231,10 +231,9 @@ const BookingInterface = () => {
         console.log('Server response:', response);
         
         if (response.success) {
-          const msg = bookingType === 'now' 
+          setMessage(bookingType === 'now' 
             ? 'Ride request sent!'
-            : 'Scheduling request sent. You will receive a text message confirmation. Refresh page to submit another request.';
-          setMessage(msg);
+            : 'Scheduling request sent. You will receive a text message confirmation. Refresh page to submit another request.');
           setBookingSubmitted(true);
           
           if (response.fareDetails) {
@@ -332,7 +331,7 @@ const BookingInterface = () => {
         </div>
       )}
 
-      {message && (
+      {message && bookingType === 'now' && (
         <div className="mb-4 p-3 bg-green-50 text-green-700 rounded-lg">
           {message}
         </div>
@@ -387,8 +386,8 @@ const BookingInterface = () => {
               </button>
             </div>
           </div>
-
-          {/* Destination */}
+		  
+		  {/* Destination */}
           <div>
             <label className="block text-gray-700 mb-1">Drop off</label>
             <div className="relative">
@@ -428,6 +427,9 @@ const BookingInterface = () => {
               required
               disabled={hasSubmitted}
             />
+          </div>
+
+          {/* Phone Number Input */}
           <div>
             <div className="relative">
               <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -498,8 +500,8 @@ const BookingInterface = () => {
         </form>
       )}
 
-      {/* Driver Info Section - Only show for immediate bookings */}
-      {(bookingType === 'now' && driverStatus === 'Online' && !isDriverBusy) && (
+      {/* Driver Info Section - Only show for 'now' booking type when driver is online and not busy */}
+      {bookingType === 'now' && driverStatus === 'Online' && !isDriverBusy && (
         <div className="bg-gray-50 rounded-lg p-6 shadow-sm">
           <h2 className="text-xl font-semibold text-center mb-6">Your Driver</h2>
           <div className="relative mb-4">
