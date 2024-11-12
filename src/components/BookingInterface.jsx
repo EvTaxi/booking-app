@@ -31,6 +31,7 @@ const BookingInterface = () => {
     socket.on('connect', () => {
       console.log('Connected to server');
       setIsConnected(true);
+      setMessage('');
     });
 
     socket.on('disconnect', () => {
@@ -49,7 +50,9 @@ const BookingInterface = () => {
     });
 
     socket.on('rideAccepted', () => {
-      setMessage('Your ride has been accepted! The driver is on the way.');
+      if (bookingType === 'now') {
+        setMessage('Ride request sent!');
+      }
     });
 
     socket.on('rideDeclined', () => {
@@ -64,7 +67,7 @@ const BookingInterface = () => {
       socket.off('rideAccepted');
       socket.off('rideDeclined');
     };
-  }, []);
+  }, [bookingType]);
   
   // Helper Functions
   const formatPhoneNumber = (value) => {
@@ -192,7 +195,6 @@ const BookingInterface = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Block if already submitted once
     if (hasSubmitted) {
       return;
     }
@@ -207,7 +209,7 @@ const BookingInterface = () => {
 
     if (!validateForm()) return;
 
-    setHasSubmitted(true); // Set this flag on first submission
+    setHasSubmitted(true);
 
     const bookingData = {
       type: 'booking-app',
@@ -229,9 +231,10 @@ const BookingInterface = () => {
         console.log('Server response:', response);
         
         if (response.success) {
-          setMessage(bookingType === 'now' 
+          const msg = bookingType === 'now' 
             ? 'Ride request sent!'
-            : 'Scheduling request sent. You will receive a text message confirmation. Refresh page to submit another request.');
+            : 'Scheduling request sent. You will receive a text message confirmation. Refresh page to submit another request.';
+          setMessage(msg);
           setBookingSubmitted(true);
           
           if (response.fareDetails) {
@@ -425,9 +428,6 @@ const BookingInterface = () => {
               required
               disabled={hasSubmitted}
             />
-          </div>
-
-          {/* Phone Number Input */}
           <div>
             <div className="relative">
               <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -498,9 +498,8 @@ const BookingInterface = () => {
         </form>
       )}
 
-      {/* Driver Info Section */}
-      {((bookingType === 'now' && driverStatus === 'Online' && !isDriverBusy) || 
-        (bookingType === 'future' && bookingSubmitted)) && (
+      {/* Driver Info Section - Only show for immediate bookings */}
+      {(bookingType === 'now' && driverStatus === 'Online' && !isDriverBusy) && (
         <div className="bg-gray-50 rounded-lg p-6 shadow-sm">
           <h2 className="text-xl font-semibold text-center mb-6">Your Driver</h2>
           <div className="relative mb-4">
