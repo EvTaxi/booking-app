@@ -18,35 +18,28 @@ const BookingInterface = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [driverStatus, setDriverStatus] = useState('Offline');
   const [isDriverBusy, setIsDriverBusy] = useState(false);
-  const [bookingSubmitted, setBookingSubmitted] = useState(false);
   const [fareEstimate, setFareEstimate] = useState(null);
   const [showFareEstimate, setShowFareEstimate] = useState(false);
   const [hasSubmitted, setHasSubmitted] = useState(false);
 
   const pickupRef = useRef(null);
   const destinationRef = useRef(null);
-  
   // Socket connection management
   useEffect(() => {
     socket.on('connect', () => {
-      console.log('Connected to server');
       setIsConnected(true);
-      // Reset message on connect to handle page refreshes
       setMessage('');
     });
 
     socket.on('disconnect', () => {
-      console.log('Disconnected from server');
       setIsConnected(false);
     });
 
     socket.on('driverStatusUpdate', ({ status }) => {
-      console.log('Driver status update:', status);
       setDriverStatus(status);
     });
 
     socket.on('passengerAppStatus', ({ isOffline }) => {
-      console.log('Passenger app status:', isOffline);
       setIsDriverBusy(isOffline);
     });
 
@@ -96,7 +89,6 @@ const BookingInterface = () => {
       setDestination('');
       setSelectedDate('');
       setSelectedTime('');
-      setBookingSubmitted(false);
       setFareEstimate(null);
       setShowFareEstimate(false);
     }
@@ -134,7 +126,6 @@ const BookingInterface = () => {
           );
         },
         (error) => {
-          console.error('Location error:', error);
           setError('Unable to get your location');
         }
       );
@@ -194,7 +185,6 @@ const BookingInterface = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Block if already submitted once
     if (hasSubmitted) {
       return;
     }
@@ -228,13 +218,10 @@ const BookingInterface = () => {
     try {
       const eventName = bookingType === 'now' ? 'rideRequest' : 'futureBookingRequest';
       socket.emit(eventName, bookingData, (response) => {
-        console.log('Server response:', response);
-        
         if (response.success) {
           setMessage(bookingType === 'now' 
             ? 'Ride request sent!'
             : 'Scheduling request sent. You will receive a text message confirmation. Refresh page to submit another request.');
-          setBookingSubmitted(true);
           
           if (response.fareDetails) {
             setFareEstimate(response.fareDetails);
@@ -245,7 +232,6 @@ const BookingInterface = () => {
         }
       });
     } catch (err) {
-      console.error('Error sending booking request:', err);
       setError('Failed to send booking request. Please refresh and try again.');
     }
   };
@@ -346,8 +332,8 @@ const BookingInterface = () => {
           }} 
         />
       )}
-
-      {/* Booking Form */}
+	  
+	  {/* Booking Form */}
       {shouldShowForm() && (
         <form onSubmit={handleSubmit} className="space-y-4 mb-8">
           {/* Pickup Location */}
@@ -386,8 +372,8 @@ const BookingInterface = () => {
               </button>
             </div>
           </div>
-		  
-		  {/* Destination */}
+
+          {/* Destination */}
           <div>
             <label className="block text-gray-700 mb-1">Drop off</label>
             <div className="relative">
@@ -446,8 +432,8 @@ const BookingInterface = () => {
             </div>
             <p className="text-sm text-gray-600 mt-1">Format: XXX-XXX-XXXX</p>
           </div>
-
-          {/* Future Booking Fields */}
+		  
+		  {/* Future Booking Fields */}
           {bookingType === 'future' && (
             <div className="space-y-4">
               <div>
