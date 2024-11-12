@@ -26,40 +26,45 @@ const BookingInterface = () => {
   const destinationRef = useRef(null);
   // Socket connection management
   useEffect(() => {
-    socket.on('connect', () => {
-      setIsConnected(true);
+  socket.on('connect', () => {
+    setIsConnected(true);
+    setMessage('');  // Clear any existing messages on refresh
+  });
+
+  socket.on('disconnect', () => {
+    setIsConnected(false);
+  });
+
+  socket.on('driverStatusUpdate', ({ status }) => {
+    setDriverStatus(status);
+  });
+
+  socket.on('passengerAppStatus', ({ isOffline }) => {
+    setIsDriverBusy(isOffline);
+    // Clear any ride accepted message if driver becomes busy
+    if (isOffline) {
       setMessage('');
-    });
+    }
+  });
 
-    socket.on('disconnect', () => {
-      setIsConnected(false);
-    });
+  socket.on('rideAccepted', () => {
+    // This will only be received by the user whose ride was accepted
+    setMessage('Your ride has been accepted! The driver is on the way.');
+  });
 
-    socket.on('driverStatusUpdate', ({ status }) => {
-      setDriverStatus(status);
-    });
+  socket.on('rideDeclined', () => {
+    setError('Your ride request was declined. Please refresh page to try again.');
+  });
 
-    socket.on('passengerAppStatus', ({ isOffline }) => {
-      setIsDriverBusy(isOffline);
-    });
-
-    socket.on('rideAccepted', () => {
-      setMessage('Your ride has been accepted! The driver is on the way.');
-    });
-
-    socket.on('rideDeclined', () => {
-      setError('Your ride request was declined. Please refresh page to try again.');
-    });
-
-    return () => {
-      socket.off('connect');
-      socket.off('disconnect');
-      socket.off('driverStatusUpdate');
-      socket.off('passengerAppStatus');
-      socket.off('rideAccepted');
-      socket.off('rideDeclined');
-    };
-  }, []);
+  return () => {
+    socket.off('connect');
+    socket.off('disconnect');
+    socket.off('driverStatusUpdate');
+    socket.off('passengerAppStatus');
+    socket.off('rideAccepted');
+    socket.off('rideDeclined');
+  };
+}, []);
   
   // Helper Functions
   const formatPhoneNumber = (value) => {
@@ -220,8 +225,8 @@ const BookingInterface = () => {
       socket.emit(eventName, bookingData, (response) => {
         if (response.success) {
           setMessage(bookingType === 'now' 
-            ? 'Ride request sent!'
-            : 'Scheduling request sent. You will receive a text message confirmation. Refresh page to submit another request.');
+            ? ''
+            : 'Scheduling request sent. You will receive a text message from driver if they can complete your request. Refresh page to submit another request.');
           
           if (response.fareDetails) {
             setFareEstimate(response.fareDetails);
