@@ -4,9 +4,9 @@ const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'https://ev-taxi-backen
 
 const socket = io(BACKEND_URL, {
   withCredentials: true,
-  transports: ['websocket', 'polling'],
+  transports: ['polling', 'websocket'],  // Start with polling, then upgrade to websocket if possible
   reconnection: true,
-  reconnectionAttempts: Infinity,
+  reconnectionAttempts: 5,
   reconnectionDelay: 1000,
   reconnectionDelayMax: 5000,
   timeout: 20000,
@@ -14,19 +14,18 @@ const socket = io(BACKEND_URL, {
   forceNew: true,
   path: '/socket.io/',
   extraHeaders: {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET,PUT,POST,DELETE,OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+    'Access-Control-Allow-Origin': '*'
   }
 });
 
 let retryCount = 0;
-const maxRetries = 5;
+const maxRetries = 3;
 let isConnected = false;
 
 // Connection handling
 socket.on('connect', () => {
   console.log('Connected to server');
+  console.log('Transport:', socket.io.engine.transport.name);
   isConnected = true;
   retryCount = 0;
 });
@@ -36,28 +35,30 @@ socket.on('disconnect', (reason) => {
   isConnected = false;
 });
 
-// Error handling with fallback logic
+// Enhanced error handling
 socket.on('connect_error', (error) => {
   console.error('Connection error:', error);
   retryCount++;
   
   if (retryCount <= maxRetries) {
-    // Try to reconnect with polling if WebSocket fails
-    if (socket.io.opts.transports.includes('websocket')) {
-      console.log('Falling back to polling');
-      socket.io.opts.transports = ['polling'];
-    }
-    
-    // Exponential backoff for reconnection
-    const delay = Math.min(1000 * Math.pow(2, retryCount), 10000);
+    const delay = Math.min(1000 * Math.pow(2, retryCount), 5000);
     
     setTimeout(() => {
       console.log(`Retrying connection... Attempt ${retryCount}`);
+      // Force polling on retry
+      socket.io.opts.transports = ['polling'];
       socket.connect();
     }, delay);
-  } else {
-    console.error('Maximum retry attempts reached');
   }
+});
+
+// Transport upgrade handling
+socket.io.engine.on('upgrade', () => {
+  console.log('Transport upgraded to:', socket.io.engine.transport.name);
+});
+
+socket.io.engine.on('upgradeError', (err) => {
+  console.log('Transport upgrade failed:', err);
 });
 
 // General error handling
@@ -65,15 +66,11 @@ socket.on('error', (error) => {
   console.error('Socket error:', error);
 });
 
-// Ping timeout handling
-socket.on('ping_timeout', () => {
-  console.log('Ping timeout - attempting to reconnect');
-  socket.connect();
-});
-
-// Reconnect attempts handling
+// Reconnection handling
 socket.on('reconnect_attempt', (attemptNumber) => {
   console.log(`Reconnection attempt ${attemptNumber}`);
+  // Always use polling for reconnection attempts
+  socket.io.opts.transports = ['polling'];
 });
 
 socket.on('reconnect', (attemptNumber) => {
@@ -89,20 +86,7 @@ socket.on('reconnect_failed', () => {
   console.error('Failed to reconnect');
 });
 
-// Helper functions
-const isSocketConnected = () => isConnected;
-
-const forceReconnect = () => {
-  if (socket) {
-    socket.disconnect();
-    retryCount = 0;
-    setTimeout(() => {
-      socket.connect();
-    }, 1000);
-  }
-};
-
-// Custom emit function with error handling
+// Custom emit function with timeout and error handling
 const emitWithTimeout = (eventName, data, timeout = 5000) => {
   return new Promise((resolve, reject) => {
     if (!isConnected) {
@@ -125,5 +109,53 @@ const emitWithTimeout = (eventName, data, timeout = 5000) => {
   });
 };
 
-// Export socket and helper functions
-export { socket as default, isSocketConnected, forceReconnect, emitWithTimeout };
+// Force reconnection function
+const forceReconnect = () => {
+  if (socket) {
+    socket.disconnect();
+    retryCount = 0;
+    socket.io.opts.transports = ['polling'];
+    setTimeout(() => {
+      socket.connect();
+    }, 1000);
+  }
+};
+
+// Helper function to check connection status
+const getConnectionStatus = () => ({
+  isConnected,
+  transport: socket.io?.engine?.transport?.name,
+  retryCount
+});
+
+// Ping/Pong monitoring
+socket.io.on('ping', () => {
+  console.log('Ping sent');
+});
+
+socket.io.on('pong', (latency) => {
+  console.log('Pong received. Latency:', latency, 'ms');
+});
+
+// Handle browser going offline/online
+if (typeof window !== 'undefined') {
+  window.addEventListener('online', () => {
+    console.log('Browser is online');
+    if (!isConnected) {
+      forceReconnect();
+    }
+  });
+
+  window.addEventListener('offline', () => {
+    console.log('Browser is offline');
+    isConnected = false;
+  });
+}
+
+// Export socket instance and helper functions
+export { 
+  socket as default, 
+  getConnectionStatus, 
+  emitWithTimeout, 
+  forceReconnect 
+};
