@@ -5,7 +5,7 @@ const FareEstimate = ({ fareDetails }) => {
   if (!fareDetails) return null;
 
   const { distance, duration, fare, destination } = fareDetails;
-  const baseFare = 3.00;
+  const baseFare = 5.00;
   const distanceCost = (distance * 2.80).toFixed(2);
   const timeCost = (duration * 0.40).toFixed(2);
 
