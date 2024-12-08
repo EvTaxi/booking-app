@@ -4,7 +4,7 @@ const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'https://ev-taxi-backen
 
 const socket = io(BACKEND_URL, {
   withCredentials: true,
-  transports: ['polling', 'websocket'],  // Start with polling, then upgrade to websocket if possible
+  transports: ['polling', 'websocket'],
   reconnection: true,
   reconnectionAttempts: 5,
   reconnectionDelay: 1000,
@@ -14,7 +14,9 @@ const socket = io(BACKEND_URL, {
   forceNew: true,
   path: '/socket.io/',
   extraHeaders: {
-    'Access-Control-Allow-Origin': '*'
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, Accept, Origin'
   }
 });
 
